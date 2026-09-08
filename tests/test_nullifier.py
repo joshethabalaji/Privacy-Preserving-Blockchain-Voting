@@ -1,55 +1,40 @@
-from crypto.nullifier import generate_nullifier
+"""
+Unit tests for Nullifier-Based Double-Vote Protection (Person 3).
+Verifies that smart contract and backend actively reject reused nullifiers.
+"""
+
+import pytest
+from web3.exceptions import ContractLogicError
 
 
-# Simulated anonymous voter secrets
-voter1_secret = b"voter1-secret-very-random-32bytes!"
-voter2_secret = b"voter2-secret-very-random-32bytes!"
+def test_nullifier_replay_protection_on_contract(w3_ganache, deployed_contract):
+    contract, _, admin = deployed_contract
 
+    # Reset/Start new test election
+    status, _ = contract.functions.getElectionStatus().call()
+    if status != "ACTIVE":
+        tx = contract.functions.startElection("ELECTION_NULLIFIER_TEST").transact({"from": admin})
+        w3_ganache.eth.wait_for_transaction_receipt(tx)
 
-# Same voter, same election
-nullifier1 = generate_nullifier(
-    voter1_secret,
-    "E2026"
-)
+    test_nullifier = "NULLIFIER_REPLAY_TEST_001"
+    test_ballot = "ENC_BALLOT_TEST_001"
 
-nullifier2 = generate_nullifier(
-    voter1_secret,
-    "E2026"
-)
+    # 1. Nullifier initially unused
+    assert contract.functions.isNullifierUsed(test_nullifier).call() is False
 
+    # 2. First submission should succeed
+    tx1 = contract.functions.recordVote(test_nullifier, test_ballot, "BATCH_NULL_01").transact({"from": admin})
+    receipt1 = w3_ganache.eth.wait_for_transaction_receipt(tx1)
+    assert receipt1.status == 1
+    assert contract.functions.isNullifierUsed(test_nullifier).call() is True
 
-# Same voter, different election
-nullifier3 = generate_nullifier(
-    voter1_secret,
-    "E2027"
-)
+    # 3. Second submission with same nullifier MUST revert
+    with pytest.raises(ContractLogicError, match="Vote rejected: nullifier has already been used."):
+        contract.functions.recordVote(test_nullifier, "ENC_BALLOT_DIFFERENT", "BATCH_NULL_01").transact({"from": admin})
 
-
-# Different voter, same election
-nullifier4 = generate_nullifier(
-    voter2_secret,
-    "E2026"
-)
-
-
-print("Nullifier 1:", nullifier1)
-print("Nullifier 2:", nullifier2)
-print("Nullifier 3:", nullifier3)
-print("Nullifier 4:", nullifier4)
-
-
-# Test 1: Same voter + same election
-assert nullifier1 == nullifier2
-
-# Test 2: Same voter + different election
-assert nullifier1 != nullifier3
-
-# Test 3: Different voter + same election
-assert nullifier1 != nullifier4
-
-
-print("\nSame voter + same election: PASS")
-print("Same voter + different election: PASS")
-print("Different voter + same election: PASS")
-
-print("\nNullifier test PASSED.")
+    # 4. A different nullifier should be accepted
+    diff_nullifier = "NULLIFIER_REPLAY_TEST_002"
+    tx2 = contract.functions.recordVote(diff_nullifier, test_ballot, "BATCH_NULL_01").transact({"from": admin})
+    receipt2 = w3_ganache.eth.wait_for_transaction_receipt(tx2)
+    assert receipt2.status == 1
+    assert contract.functions.isNullifierUsed(diff_nullifier).call() is True

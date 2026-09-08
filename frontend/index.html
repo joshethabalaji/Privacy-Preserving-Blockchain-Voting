@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Person 3 — Privacy-Preserving Blockchain Voting & Audit Module</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo-group">
+                <div class="logo-icon">⛓️</div>
+                <div>
+                    <h1>PERSON 3: Blockchain & Audit Subsystem</h1>
+                    <p class="subtitle">Privacy-Preserving Electronic Voting System with Iris-Based Voter Verification</p>
+                </div>
+            </div>
+            <div class="system-status-badge" id="systemStatusBadge">
+                <span class="status-dot"></span>
+                <span id="ganacheStatusText">Checking Ganache...</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-container">
+        <!-- Top Banner / Boundary Notice -->
+        <div class="boundary-notice">
+            <div class="notice-icon">🛡️</div>
+            <div class="notice-content">
+                <strong>Architectural Boundary Active:</strong> Person 3 operates exclusively on protected voting tuples (<code>encrypted_ballot</code>, <code>nullifier</code>, <code>batch_id</code>). All voter personally identifiable information (<code>voter_id</code>, <code>name</code>, <code>iris_template</code>) and plaintext candidates are strictly isolated in Person 1 and Person 2 modules.
+            </div>
+        </div>
+
+        <!-- 1. Blockchain Network & Contract Status -->
+        <section class="card status-grid-card">
+            <div class="card-header">
+                <h2>1. Local Blockchain & Smart Contract Status</h2>
+                <div class="header-actions">
+                    <button id="btnRefreshStatus" class="btn btn-sm btn-outline">🔄 Refresh Status</button>
+                </div>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span class="stat-label">Ganache RPC</span>
+                    <span class="stat-value text-mono" id="valRpcUrl">http://127.0.0.1:7545</span>
+                    <span class="stat-sub" id="valGanacheState">Connected</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Smart Contract (Voting.sol)</span>
+                    <span class="stat-value text-mono" id="valContractAddress">Not Deployed</span>
+                    <span class="stat-sub text-mono" id="valAdminAccount">Admin: -</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Current Block Number</span>
+                    <span class="stat-value text-mono" id="valBlockNumber">0</span>
+                    <span class="stat-sub">Gas Optimization: Enabled</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Election State</span>
+                    <span class="stat-value highlight" id="valElectionState">NOT_STARTED</span>
+                    <span class="stat-sub text-mono" id="valElectionId">ID: ELECTION_2026</span>
+                </div>
+            </div>
+            <div class="election-controls">
+                <div class="input-group-inline">
+                    <input type="text" id="inputElectionId" value="ELECTION_2026" placeholder="Enter Election ID">
+                    <button id="btnStartElection" class="btn btn-primary">▶ Start Election</button>
+                    <button id="btnEndElection" class="btn btn-danger">⏹ End Election</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Randomized Ballot Queue & Batching -->
+        <section class="card">
+            <div class="card-header">
+                <h2>2. Temporary Randomized Ballot Queue</h2>
+                <span class="badge badge-info" id="queueCountBadge">0 Queued</span>
+            </div>
+            <p class="section-desc">
+                Incoming encrypted ballots from Person 2 are placed into a temporary queue. Ballots are cryptographically shuffled prior to packaging into batches to eliminate timing/order correlation.
+            </p>
+            <div class="button-bar">
+                <button id="btnSeedQueue" class="btn btn-secondary">📥 Seed 4 Test Ballots</button>
+                <button id="btnOpenAddModal" class="btn btn-outline">➕ Add Custom Ballot</button>
+                <button id="btnShuffleQueue" class="btn btn-outline">🔀 Shuffle Queue</button>
+                <button id="btnProcessBatch" class="btn btn-success">🚀 Create Batch & Submit to Ganache</button>
+                <button id="btnClearQueue" class="btn btn-ghost text-danger">🗑️ Clear Queue</button>
+            </div>
+
+            <!-- Queue Table -->
+            <div class="table-container">
+                <table class="data-table" id="queueTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Election ID</th>
+                            <th>Encrypted Ballot (Ciphertext)</th>
+                            <th>Nullifier Hash</th>
+                            <th>Queued At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queueTableBody">
+                        <tr><td colspan="5" class="empty-cell">Queue is currently empty. Click "Seed 4 Test Ballots" above.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 3. Blockchain Confirmed Records -->
+        <section class="card">
+            <div class="card-header">
+                <h2>3. Blockchain Confirmed Vote Records (Voting.sol)</h2>
+                <span class="badge badge-success" id="onchainCountBadge">0 Confirmed</span>
+            </div>
+            <p class="section-desc">
+                Immutable records fetched directly from the Ganache smart contract via Web3.py.
+            </p>
+            <div class="table-container">
+                <table class="data-table" id="blockchainTable">
+                    <thead>
+                        <tr>
+                            <th>Block #</th>
+                            <th>Batch ID</th>
+                            <th>Nullifier Hash</th>
+                            <th>Encrypted Ballot Ciphertext</th>
+                            <th>Timestamp</th>
+                            <th>Privacy Verification</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blockchainTableBody">
+                        <tr><td colspan="6" class="empty-cell">No votes recorded on blockchain yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 4. Double-Vote Nullifier Protection Panel -->
+        <section class="card duplicate-test-card">
+            <div class="card-header">
+                <h2>4. Nullifier Double-Vote Prevention Test</h2>
+                <span class="badge badge-warning">Critical Security Rule</span>
+            </div>
+            <p class="section-desc">
+                Test the smart contract's duplicate nullifier rejection. Submitting an already-recorded nullifier will trigger an immediate transaction revert on the blockchain.
+            </p>
+            <div class="duplicate-test-box">
+                <div class="input-group-inline">
+                    <input type="text" id="inputTestNullifier" value="NULLIFIER_001" placeholder="Nullifier to test (e.g., NULLIFIER_001)">
+                    <input type="text" id="inputTestBallot" value="ENC_BALLOT_TEST" placeholder="Encrypted Ballot">
+                    <button id="btnTestDuplicate" class="btn btn-warning">⚡ Attempt Replay Submission</button>
+                </div>
+                <div class="test-result-box" id="duplicateTestResult" style="display: none;">
+                    <!-- Live result inserted here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. Tamper-Evident SHA-256 Hash Chained Audit Trail -->
+        <section class="card">
+            <div class="card-header">
+                <h2>5. Tamper-Evident Hash-Chained Audit Log</h2>
+                <div class="header-actions">
+                    <button id="btnVerifyAudit" class="btn btn-primary">🔍 Verify Audit Chain</button>
+                </div>
+            </div>
+            <p class="section-desc">
+                Every queue, batch, submission, and confirmation event is cryptographically linked: <code>entry_hash = SHA256(prev_hash + timestamp + event_type + data)</code>.
+            </p>
+            
+            <div class="audit-verification-banner" id="auditVerifyBanner" style="display: none;">
+                <!-- Audit verify result -->
+            </div>
+
+            <div class="table-container audit-table-container">
+                <table class="data-table text-mono" id="auditTable">
+                    <thead>
+                        <tr>
+                            <th>Index</th>
+                            <th>Event Type</th>
+                            <th>Prev Hash</th>
+                            <th>Entry Hash (SHA-256)</th>
+                            <th>Event Details</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditTableBody">
+                        <tr><td colspan="6" class="empty-cell">Loading audit chain...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 6. Educational Tamper Detection Simulation -->
+        <section class="card tamper-demo-card">
+            <div class="card-header">
+                <h2>6. Educational Tamper Detection Simulation</h2>
+                <span class="badge badge-danger">Simulation Mode</span>
+            </div>
+            <p class="section-desc">
+                Simulates an attacker attempting to modify historical offline audit data. Demonstrates how SHA-256 hash chaining immediately flags altered records.
+            </p>
+            <div class="button-bar">
+                <button id="btnRunTamperDemo" class="btn btn-danger">🧪 Run Safe Tamper Detection Demo</button>
+            </div>
+            <div class="tamper-output-grid" id="tamperOutputGrid" style="display: none;">
+                <!-- Tamper demo output cards -->
+            </div>
+        </section>
+
+        <!-- 7. Candidate Tally & Simulated Results -->
+        <section class="card">
+            <div class="card-header">
+                <h2>7. Simulated Candidate Tally (Prototype Visualization)</h2>
+                <span class="badge badge-info">Simulated Tally</span>
+            </div>
+            <p class="section-desc">
+                <strong>Privacy Protocol:</strong> Person 2 holds the private decryption key. Person 3 aggregates encrypted ciphertexts on-chain without knowing plaintext votes.
+            </p>
+            <div class="tally-container" id="tallyContainer">
+                <div class="empty-cell">No votes recorded yet. Submit a batch to see simulated distribution.</div>
+            </div>
+        </section>
+
+        <!-- 8. Integration Boundary Dispatcher (Person 1 & 2 Callbacks) -->
+        <section class="card">
+            <div class="card-header">
+                <h2>8. Inter-Module Integration Log (Person 1 & Person 2)</h2>
+                <span class="badge badge-outline">Boundary Watcher</span>
+            </div>
+            <p class="section-desc">
+                Confirmation callbacks sent to Person 1 (to set <code>has_voted = TRUE</code> only after on-chain receipt confirmation) and Person 2 (receipt payload).
+            </p>
+            <div class="integration-logs-box" id="integrationLogsBox">
+                <div class="empty-cell">No integration events dispatched yet.</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Custom Ballot Modal -->
+    <div class="modal-overlay" id="addBallotModal" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Add Protected Ballot to Queue</h3>
+                <button class="modal-close" id="btnCloseModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Election ID</label>
+                    <input type="text" id="modalElectionId" value="ELECTION_2026">
+                </div>
+                <div class="form-group">
+                    <label>Encrypted Ballot Ciphertext (Person 2 simulation)</label>
+                    <input type="text" id="modalEncryptedBallot" value="ENC_BALLOT_CUSTOM_01">
+                </div>
+                <div class="form-group">
+                    <label>Nullifier (Person 2 SHA256 simulation)</label>
+                    <input type="text" id="modalNullifier" value="NULLIFIER_CUSTOM_01">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="btnCancelModal">Cancel</button>
+                <button class="btn btn-primary" id="btnSubmitModal">Add to Queue</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
